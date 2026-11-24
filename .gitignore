@@ -1,0 +1,19 @@
+# virtual environment
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# raw downloads (the split copy lives in data/train and data/test)
+data/raw/
+
+# local state for the API / UI (added in later steps)
+*.db
+# SQLite WAL side files, created when several API containers write (step 6)
+*.db-wal
+*.db-shm
+*.sqlite3
+uploads/
+
+# notebook checkpoints
+.ipynb_checkpoints/

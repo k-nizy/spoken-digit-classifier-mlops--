@@ -1,0 +1,15 @@
+numpy
+pandas
+matplotlib
+librosa>=0.10.2
+soundfile>=0.12.1
+scikit-learn>=1.4
+tensorflow>=2.16
+jupyterlab>=4.1
+ipykernel>=6.29
+fastapi>=0.115
+uvicorn>=0.30
+python-multipart>=0.0.9
+streamlit>=1.36
+requests>=2.31
+locust>=2.29
