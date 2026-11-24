@@ -1,0 +1,86 @@
+# Three containers from two images:
+#   api   - FastAPI + TensorFlow, no host port (scalable: 1, 2 or 3 copies)
+#   nginx - the front door on port 8000, round-robins across the api copies
+#   ui    - Streamlit dashboard on port 8501, talking to the API through nginx
+#
+# Run from this folder:
+#   docker compose up --build
+# then open http://localhost:8501 (the API is on http://localhost:8000/docs).
+#
+# Flood test at 1, 2 and 3 API containers (see the README for the full protocol):
+#   docker compose up -d --scale api=3 --build
+#   LOCUST_WAIT_MIN=0.5 LOCUST_WAIT_MAX=1.5 \
+#   .venv/Scripts/python.exe -m locust -f locustfile.py --host http://127.0.0.1:8000 \
+#       --headless -u 40 -r 10 -t 60s --only-summary
+
+services:
+  api:
+    build: .
+    image: spoken-digit-api:local
+    command: python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+    environment:
+      MODEL_PATH: /app/models/spoken_digit_cnn.keras
+      DATABASE_PATH: /app/data/db/app.db
+      # Keep TensorFlow from grabbing every core, so the UI and the OS stay usable.
+      TF_NUM_INTRAOP_THREADS: "2"
+      TF_NUM_INTEROP_THREADS: "1"
+    expose:
+      - "8000"          # compose network only: nginx is the public front door
+    volumes:
+      - uploads:/app/data/uploads   # uploaded clips (needed again on retrain)
+      - dbdata:/app/data/db         # the SQLite database
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import sys,urllib.request;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).status == 200 else 1)"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s             # the model takes a few seconds to load
+
+  nginx:
+    image: nginx:1.29-alpine      # >= 1.27.3 is what matters: "resolve" in an upstream block
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "8000:80"
+    depends_on:
+      api:
+        condition: service_healthy   # waits for every replica, so the DNS entry is complete
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/lb-health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+  ui:
+    build: .
+    image: spoken-digit-api:local
+    command: >
+      python -m streamlit run app/ui.py
+      --server.address 0.0.0.0 --server.port 8501
+      --server.headless true --browser.gatherUsageStats false
+    environment:
+      API_URL: http://nginx:80     # through the load balancer, not localhost
+    ports:
+      - "8501:8501"
+    depends_on:
+      nginx:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import sys,urllib.request;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=3).status == 200 else 1)"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+volumes:
+  uploads:
+  dbdata:

@@ -1,0 +1,19 @@
+# Never send these into the image.
+.venv/
+venv/
+__pycache__/
+*.pyc
+.git/
+.gitignore
+
+# Local state: the database and uploaded clips belong in volumes, not the image.
+*.db
+*.sqlite3
+data/uploads/
+data/raw/
+models/backup/
+
+# Not needed at runtime (keeps the build context small).
+notebook/
+docs/
+.ipynb_checkpoints/
