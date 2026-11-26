@@ -1,6 +1,6 @@
 # AI usage log
 
-Every step where AI was used, in order: the prompt, what it produced, what broke.
+Every step where AI was used: the prompt, what it produced, what broke.
 Tool for all ten steps: Freebuff coding agent.
 
 **Summary:** AI wrote a first draft of the code; I ran every step, reviewed every
@@ -14,7 +14,7 @@ acquisition, preprocessing, model creation, model testing; one optimisation
 technique; at least 4 metrics; save the model to models/."
 
 **Produced:** `requirements.txt`, `.gitignore`, a README whose every paragraph is a
-`TODO`, and a 20-cell notebook: download FSDD, split it 80/20 stratified by digit,
+`TODO`, and a 25-cell notebook: download FSDD, split it 80/20 stratified by digit,
 load at 8 kHz, pad or trim to 1 s, 64-band log-mel scaled to 0..1, a CNN of three
 conv blocks with dropout into a 10-way head, early stopping (patience 8, best
 weights restored) with a checkpoint and `ReduceLROnPlateau`, then loss, accuracy,
@@ -52,10 +52,10 @@ upload of multiple files with the results saved to a database, and exposes a
 retrain endpoint that warm-starts from my saved model using the uploaded data."
 
 **Produced:** SQLite through the standard library (`predictions`, `uploads`,
-`retrain_jobs`) and eight endpoints: `/health`, `/predict`, `/upload` (labels
-optional, otherwise from the file name), `/retrain` (warm start, replays
-`data/train`, scores before and after, backs up the old weights), `/retrain/{id}`,
-`/uploads`, `/metrics`. On a throwaway database: digit 3 at 0.99999, two uploads
+`retrain_jobs`) and eight endpoints: `/`, `/health`, `/predict`, `/upload` (labels
+optional, otherwise from the file name), `/uploads`, `/retrain` (warm start,
+replays `data/train`, scores before and after, backs up the old weights),
+`/retrain/{id}` and `/metrics`. On a throwaway database: digit 3 at 0.99999, two uploads
 storing 10 correct rows, a 25-epoch retrain on 2410 clips (0.9883 -> 0.9850), and a
 background job going running -> finished without blocking the API.
 
@@ -202,9 +202,9 @@ is limited to one thread of each kind for the 0.1 CPU; and the UI's `API_URL` is
 the API's public URL, because a free web service cannot receive traffic over the
 private network. Validated against Render's published blueprint schema.
 
-**Not verified:** the deployment itself. The free plan gives 512 MB, which is at
-the edge of the 434-510 MiB the API used here at idle, so it may be killed for
-memory, and a retrain on 0.1 CPU will outlast the UI's 6-minute polling window.
+**Not verified:** the deployment itself. The free plan gives 512 MB, at the edge of
+the 434-510 MiB the API used here at idle, so it may be killed for memory; a
+retrain on 0.1 CPU will also outlast the UI's 6-minute polling window.
 
 **How I changed it:** TODO: (me) e.g. whether I raised the plan, changed a
 service name, or deployed from the dashboard anyway.
