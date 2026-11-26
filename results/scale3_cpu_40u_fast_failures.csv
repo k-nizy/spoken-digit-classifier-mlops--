@@ -1,0 +1,2 @@
+Method,Name,Error,Occurrences,First Seen,Last Seen
+POST,/predict,HTTPError('500 Server Error: Internal Server Error for url: /predict'),5,2026-11-26T10:21:17Z,2026-11-26T10:21:19Z
