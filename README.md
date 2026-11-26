@@ -40,7 +40,7 @@ locustfile.py, nginx.conf                load test and load balancer
 results/                                 Locust CSVs from the flood tests
 Dockerfile, docker-compose.yml           containers for local runs and scaling
 render.yaml                              Render blueprint for the two cloud services
-docs/                                    AI usage log and project notes
+docs/ai_usage_log.md                     AI usage disclosure
 ```
 
 ## Setup
