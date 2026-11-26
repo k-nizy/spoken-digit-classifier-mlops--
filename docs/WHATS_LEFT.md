@@ -1,6 +1,6 @@
 # What is left to do
 
-Audit of this repository at the end of step 9. Everything the code can do is
+Audit of this repository at the end of step 10. Everything the code can do is
 already written and tested; this file lists **only** the work that cannot be
 done from here, because it needs your machine, your accounts, your voice or
 your own words.
@@ -22,7 +22,7 @@ five minutes.
 | Container setup | `Dockerfile`, `.dockerignore`, `docker-compose.yml` | image built (`spoken-digit-api:local`, 1.07 GB) and run as **3 api containers + nginx + ui**: all healthy, predict/upload/metrics/retrain verified through the balancer |
 | Load test | `locustfile.py` | ran headless at 20 and 40 users, numbers in `docs/ai_usage_log.md` steps 6 and 8 and in the README tables |
 | Load balancer | `nginx.conf` (new `nginx` service) | `nginx -t` passes on `nginx:1.29-alpine`; requests split 10/10/9 across the 3 replicas; scaling 3 -> 1 gave 10/10 successes with no nginx restart |
-| AI use disclosed | `docs/ai_usage_log.md` | 9 entries, one per step |
+| AI use disclosed | `docs/ai_usage_log.md` | 10 entries, one per step |
 
 ---
 
@@ -135,10 +135,18 @@ you want a different plan.
 4. Open the UI URL once, wait for the free instance to wake (30-60 s), predict
    one clip. Then put both URLs in the README.
 
-Free instances sleep after ~15 minutes idle, so wake the API *before* recording
-the video. If Render refuses the disk on the free plan, say so in the README and
-deploy without it: the model still loads from the image, only the upload history
-resets.
+Free instances sleep after ~15 minutes idle, so wake both services *before*
+recording. Two things the free plan cannot do, and both change how you record:
+
+- **No disk.** The SQLite file and the uploaded clips are wiped on every deploy,
+  restart and wake-up, so the counters start at zero each session. Fine for a
+  prediction demo; do not claim persistence in the README.
+- **0.1 CPU.** Retraining on the deployed service is not practical: the 5-epoch
+  run took 67 s on this 8-core laptop, and on a tenth of one core expect tens of
+  minutes, while the UI stops polling after 6 minutes and reports the job as
+  still running. **Record the retraining part on `localhost`** and say on camera
+  that retraining is demonstrated locally because the free instance has almost no
+  CPU budget - that is an honest answer, and better than a stalled spinner.
 
 ### 2.4 Record the demo video  (5-10 minutes)
 
@@ -188,7 +196,7 @@ git push
 You asked that all explanation text be left as `TODO` so you can write it. These
 are the remaining `TODO`s, with the facts to use so you are not starting cold.
 
-### 3.1 README.md — 11 sections
+### 3.1 README.md — 10 sections
 
 | Section | The numbers/facts to put in it |
 |---|---|
@@ -200,7 +208,7 @@ are the remaining `TODO`s, with the facts to use so you are not starting cold.
 | Setup | `python -m venv .venv`, activate, `pip install -r requirements.txt`, run the notebook (it downloads FSDD into `data/raw/` and writes `data/train` + `data/test`) |
 | Running the API and the UI | `python -m uvicorn app.main:app --port 8000`, `python -m streamlit run app/ui.py` |
 | Docker and scaling | `docker compose up --build`, then `--scale api=3`; nginx on port 8000 round-robins |
-| Flood simulation | the commands from 2.2 plus the table you fill in |
+| Flood simulation | **already written** — the commands, both tables and the reading of them |
 | Results and interpretation | accuracy 0.9883, precision macro 0.9887, recall macro 0.9883, F1 macro 0.9884, loss 0.0495, 34 epochs, 7 errors in 600 clips; which digits get confused is in `models/confusion_matrix.png` |
 | Limitations and next steps | see section 5 below — you can reuse it in your own words |
 
@@ -218,7 +226,7 @@ best epoch's accuracy 0.9883 on the 600 held-out clips.
 
 ### 3.3 `docs/ai_usage_log.md` — the "How I changed it" lines
 
-Nine `TODO: (me)` lines, one per step (grep for `TODO: (me)`). Each asks what
+Ten `TODO: (me)` lines, one per step (grep for `TODO: (me)`). Each asks what
 *you* changed after the AI produced the code, which is the disclosure the
 assignment asks for. One or two honest sentences each is enough — e.g. "I
 raised the epoch count to 25 for the video retrain because 8 finished too fast
@@ -244,7 +252,7 @@ Once the items in sections 2 and 3 above are done, yes. Mapping to the rubric:
 | Locust flood test at 1/2/3 containers | Done — two tables in the README (20-user and 40-user runs at 1, 2 and 3 containers) |
 | Deployed app | **Not deployed** — needs your account, item 2.3 |
 | Video with camera on, prediction and retraining | **Not recorded** — item 2.4 |
-| AI use disclosed | Done — 9 log entries; your "How I changed it" lines pending |
+| AI use disclosed | Done — 10 log entries; your "How I changed it" lines pending |
 
 Nothing else is missing. There is no unfinished code path, no endpoint without
 a test, and no placeholder in `app/`, `src/` or `locustfile.py`.

@@ -1,7 +1,7 @@
 # AI usage log
 
 Every step where AI was used, in order: the prompt, what it produced, what broke.
-Tool for all nine steps: Freebuff coding agent.
+Tool for all ten steps: Freebuff coding agent.
 
 **Summary:** AI wrote a first draft of the code; I ran every step, reviewed every
 file, wrote all the prose, and changed: TODO: (me) list your changes here - the
@@ -186,3 +186,25 @@ from `data/test`, so the "after" number in the real demo will differ.
 
 **How I changed it:** TODO: (me) the number of epochs I picked so the retrain fits
 the video.
+
+## Step 10 - Render blueprint for the two services  (2026-11-26)
+
+**Prompt:** "Add a render.yaml blueprint for the two Render services from the
+existing Dockerfile so I can deploy without clicking through the dashboard, and
+tell me what the free tier will refuse."
+
+**Produced:** `render.yaml` creating `spoken-digit-api` and `spoken-digit-ui` as
+free Docker web services from the same `Dockerfile`, so deploying is New ->
+Blueprint instead of filling in two sets of dashboard fields. Port 10000 is a
+literal number because a Docker command is not run through a shell and would pass
+`$PORT` as text; `/health` and `/_stcore/health` are the health checks; TensorFlow
+is limited to one thread of each kind for the 0.1 CPU; and the UI's `API_URL` is
+the API's public URL, because a free web service cannot receive traffic over the
+private network. Validated against Render's published blueprint schema.
+
+**Not verified:** the deployment itself. The free plan gives 512 MB, which is at
+the edge of the 434-510 MiB the API used here at idle, so it may be killed for
+memory, and a retrain on 0.1 CPU will outlast the UI's 6-minute polling window.
+
+**How I changed it:** TODO: (me) e.g. whether I raised the plan, changed a
+service name, or deployed from the dashboard anyway.
