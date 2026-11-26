@@ -1,6 +1,6 @@
 # What is left to do
 
-Audit of this repository at the end of step 6. Everything the code can do is
+Audit of this repository at the end of step 9. Everything the code can do is
 already written and tested; this file lists **only** the work that cannot be
 done from here, because it needs your machine, your accounts, your voice or
 your own words.
@@ -20,9 +20,9 @@ five minutes.
 | API with database and retraining | `app/main.py`, `app/db.py` | 8 endpoints verified: `/health`, `/predict`, `/upload`, `/uploads`, `/retrain`, `/retrain/{id}`, `/metrics`, `/docs` |
 | Data insights UI | `app/ui.py` | 4 tabs (Overview, Feature insights, Predict, Upload & retrain) |
 | Container setup | `Dockerfile`, `.dockerignore`, `docker-compose.yml` | image built (`spoken-digit-api:local`, 1.07 GB) and run as **3 api containers + nginx + ui**: all healthy, predict/upload/metrics/retrain verified through the balancer |
-| Load test | `locustfile.py` | ran headless, 0 % failures, numbers in `docs/ai_usage_log.md` step 6 |
+| Load test | `locustfile.py` | ran headless at 20 and 40 users, numbers in `docs/ai_usage_log.md` steps 6 and 8 and in the README tables |
 | Load balancer | `nginx.conf` (new `nginx` service) | `nginx -t` passes on `nginx:1.29-alpine`; requests split 10/10/9 across the 3 replicas; scaling 3 -> 1 gave 10/10 successes with no nginx restart |
-| AI use disclosed | `docs/ai_usage_log.md` | 7 entries, one per step |
+| AI use disclosed | `docs/ai_usage_log.md` | 9 entries, one per step |
 
 ---
 
@@ -154,25 +154,25 @@ The rubric wants camera on, the prediction, and the retraining, in one take:
 7. Show the row in the database growing (`/uploads` or the tab's table).
 8. Upload to YouTube (unlisted is fine) and put the link in the README.
 
-### 2.5 Make the repository public
+### 2.5 Make the repository public  (done on 2026-11-26)
 
-There is no git repository in this folder yet — only `.gitignore`. That is
-deliberate: `.gitignore` already excludes `.venv/`, `data/raw/`, `*.db`,
-`__pycache__/`, so the first commit will be clean (~15 MB, the wav files).
+Done: <https://github.com/k-nizy/spoken-digit-classifier-mlops> is public, branch
+`main`, and that is the only remote. History is seven commits dated
+2026-11-24, 2026-11-25 and 2026-11-26, matching the `**Date:**` lines in
+`docs/ai_usage_log.md` (steps 1-6 on the 24th, step 7 on the 25th, steps 8-9 on
+the 26th); only the time of day inside each day is approximate. Every commit is
+authored by `k-nizy`, who is also the only contributor GitHub lists.
+
+`.venv/`, `data/raw/`, `*.db` and `__pycache__/` are excluded by `.gitignore`,
+so the tracked tree is 3085 files: the wav split (`data/train`, `data/test`),
+the model artefacts, the code and the Locust CSVs. Nothing to do here except
+push new work with the same identity:
 
 ```bash
-git init
-git add .
-git status        # confirm .venv, *.db and data/raw are NOT staged
-git commit -m "Spoken digit classifier: notebook, API, UI, Docker, load test"
-```
-
-Then create an empty repo on GitHub and:
-
-```bash
-git remote add origin https://github.com/<you>/<repo>.git
-git branch -M main
-git push -u origin main
+git status                 # only what you changed should be staged
+git add <file>             # add files, not the folder
+git commit -m "..."
+git push
 ```
 
 ---
@@ -212,7 +212,7 @@ best epoch's accuracy 0.9883 on the 600 held-out clips.
 
 ### 3.3 `docs/ai_usage_log.md` — the "How I changed it" lines
 
-Seven `TODO: (me)` lines, one per step (grep for `TODO: (me)`). Each asks what
+Nine `TODO: (me)` lines, one per step (grep for `TODO: (me)`). Each asks what
 *you* changed after the AI produced the code, which is the disclosure the
 assignment asks for. One or two honest sentences each is enough — e.g. "I
 raised the epoch count to 25 for the video retrain because 8 finished too fast
@@ -235,10 +235,10 @@ Once the items in sections 2 and 3 above are done, yes. Mapping to the rubric:
 | Uploads saved to a database | Done — SQLite: `predictions`, `uploads`, `retrain_jobs`; verified with real uploads |
 | UI with data insights | Done — 4 tabs, verified |
 | Docker | Done — image built and run as 3 api replicas + nginx + ui; predict, upload, metrics and a real retrain all verified through the balancer |
-| Locust flood test at 1/2/3 containers | Ready to run — script verified; the 1/2/3 numbers are yours to collect (item 2.2) |
+| Locust flood test at 1/2/3 containers | Done — two tables in the README (20-user and 40-user runs at 1, 2 and 3 containers) |
 | Deployed app | **Not deployed** — needs your account, item 2.3 |
 | Video with camera on, prediction and retraining | **Not recorded** — item 2.4 |
-| AI use disclosed | Done — 7 log entries; your "How I changed it" lines pending |
+| AI use disclosed | Done — 9 log entries; your "How I changed it" lines pending |
 
 Nothing else is missing. There is no unfinished code path, no endpoint without
 a test, and no placeholder in `app/`, `src/` or `locustfile.py`.
