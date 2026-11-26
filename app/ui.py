@@ -46,10 +46,17 @@ API_URL = os.environ.get("API_URL", "http://127.0.0.1:8000").rstrip("/")
 TEST_DIR = ROOT / "data" / "test"
 CLIPS_PER_DIGIT = 20                              # enough for a stable average
 
+# Render's free plan puts the API to sleep after 15 minutes without traffic, and
+# the first request after that waits for a cold start: 81 s on an idle machine,
+# 5 min 16 s measured while this machine was busy, against Render's own 15-minute
+# start limit. Ten seconds (fine for a local API) would always time out, so
+# reads get a timeout that covers the slow wake.
+GET_TIMEOUT = 300
+
 
 # ------------------------------------------------------------------- API -----
 def api_get(path, **params):
-    response = requests.get(f"{API_URL}{path}", params=params, timeout=10)
+    response = requests.get(f"{API_URL}{path}", params=params, timeout=GET_TIMEOUT)
     response.raise_for_status()
     return response.json()
 
@@ -337,8 +344,10 @@ def main():
         metrics = api_get("/metrics")
     except requests.RequestException as error:
         st.error(f"Cannot reach the API at {API_URL}: {error}")
-        st.info("Start it first: "
-                "`.venv/Scripts/python.exe -m uvicorn app.main:app --port 8000`")
+        st.info("Locally, start it first: "
+                "`.venv/Scripts/python.exe -m uvicorn app.main:app --port 8000`. "
+                "On Render's free plan the API sleeps after 15 minutes idle: the "
+                "first request can take a few minutes, then reload this page.")
         return
 
     tabs = st.tabs(["Overview", "Feature insights", "Predict", "Upload & retrain"])

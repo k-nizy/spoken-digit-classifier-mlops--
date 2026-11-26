@@ -208,3 +208,31 @@ retrain on 0.1 CPU will also outlast the UI's 6-minute polling window.
 
 **How I changed it:** TODO: (me) e.g. whether I raised the plan, changed a
 service name, or deployed from the dashboard anyway.
+
+## Step 11 - Ran both Render start commands locally  (2026-11-26)
+
+**Prompt:** "Before I deploy, prove the two commands in render.yaml actually work:
+start the built image the way each service will (port 10000, same env vars) and
+check /health and /_stcore/health answer there. Tell me anything that would still
+fail on Render, and fix it if it is in the repo."
+
+**Produced:** both services started from `spoken-digit-api:local` with the
+blueprint's exact commands and env vars on port 10000, under the free plan's
+limits (`--cpus=0.1 --memory=512m`): `/health` returned 200 with
+`"model_loaded": true` and `/_stcore/health` returned 200 `ok`. Also exercised on
+that container, because a free deploy has no volumes: `/metrics`, `/predict`
+(7 -> 7 at 0.9999995), `/upload` and `/uploads`, plus the SQLite file being
+created in `/app/data/db`. Peak memory during inference was 373 MiB of the
+512 MB, and the cold start to a 200 took 81 s on an idle machine and 5 min 16 s
+with the machine busy - both inside Render's 15-minute start limit. One repo fix:
+`app/ui.py` gave every GET 10 s, which always fails just after a free instance
+wakes, so reads now wait 300 s and the error message explains the wake. My first
+run failed for a shell reason, not a code reason: Git Bash rewrote
+`-e MODEL_PATH=/app/...` into a Windows path; re-running with path conversion off
+showed the variable arriving intact.
+
+**Not verified:** the deployment itself, Streamlit's websocket through Render's
+proxy, the 512 MB kill, and a 4.6 GB image build on Render's builders.
+
+**How I changed it:** TODO: (me) e.g. the timeout I settled on and what I did
+about the cold start before recording.

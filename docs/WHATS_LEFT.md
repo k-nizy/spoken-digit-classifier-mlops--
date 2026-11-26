@@ -1,6 +1,6 @@
 # What is left to do
 
-Audit of this repository at the end of step 10. Everything the code can do is
+Audit of this repository at the end of step 11. Everything the code can do is
 already written and tested; this file lists **only** the work that cannot be
 done from here, because it needs your machine, your accounts, your voice or
 your own words.
@@ -22,7 +22,7 @@ five minutes.
 | Container setup | `Dockerfile`, `.dockerignore`, `docker-compose.yml` | image built (`spoken-digit-api:local`, 1.07 GB) and run as **3 api containers + nginx + ui**: all healthy, predict/upload/metrics/retrain verified through the balancer |
 | Load test | `locustfile.py` | ran headless at 20 and 40 users, numbers in `docs/ai_usage_log.md` steps 6 and 8 and in the README tables |
 | Load balancer | `nginx.conf` (new `nginx` service) | `nginx -t` passes on `nginx:1.29-alpine`; requests split 10/10/9 across the 3 replicas; scaling 3 -> 1 gave 10/10 successes with no nginx restart |
-| AI use disclosed | `docs/ai_usage_log.md` | 10 entries, one per step |
+| AI use disclosed | `docs/ai_usage_log.md` | 11 entries, one per step |
 
 ---
 
@@ -226,7 +226,7 @@ best epoch's accuracy 0.9883 on the 600 held-out clips.
 
 ### 3.3 `docs/ai_usage_log.md` — the "How I changed it" lines
 
-Ten `TODO: (me)` lines, one per step (grep for `TODO: (me)`). Each asks what
+Eleven `TODO: (me)` lines, one per step (grep for `TODO: (me)`). Each asks what
 *you* changed after the AI produced the code, which is the disclosure the
 assignment asks for. One or two honest sentences each is enough — e.g. "I
 raised the epoch count to 25 for the video retrain because 8 finished too fast
