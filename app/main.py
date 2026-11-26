@@ -62,6 +62,13 @@ DATABASE_PATH = Path(os.environ.get("DATABASE_PATH", APP_ROOT / "data" / "app.db
 STARTED_AT = time.time()
 _test_set = None       # cached (X, y, names) of data/test for before/after accuracy
 
+# Training runs inside this process, so it needs real memory. A free Render
+# instance has 512 MB and the kernel kills the container mid-job, which looks
+# like a 502 to the client and wipes the uploads on restart. Hosts like that
+# set RETRAIN_ENABLED=false and the endpoint answers 503 instead of dying.
+RETRAIN_ENABLED = os.environ.get("RETRAIN_ENABLED", "true").strip().lower() not in {
+    "0", "false", "no", "off"}
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     """Create the database tables, then load the model once (fails fast if broken)."""
@@ -146,6 +153,7 @@ def health():
         "model_loaded": get_model(MODEL_PATH) is not None,
         "model_path": str(MODEL_PATH),
         "uptime_seconds": round(time.time() - STARTED_AT, 1),
+        "retraining_enabled": RETRAIN_ENABLED,
         "checked_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
 
@@ -264,6 +272,15 @@ def retrain(
     does not wipe out what the model already knows. Set it to False to train on
     the uploads alone.
     """
+    if not RETRAIN_ENABLED:
+        raise HTTPException(
+            status_code=503,
+            detail="retraining is disabled on this deployment (RETRAIN_ENABLED=false). "
+                   "Training inside the API process needs more than a free instance's "
+                   "512 MB, where the container is killed mid-job. Run it locally with "
+                   "docker compose.",
+        )
+
     rows = db.labelled_uploads()
     if len(rows) < 5:
         raise HTTPException(

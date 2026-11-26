@@ -250,7 +250,7 @@ def predict_tab():
                 st.pyplot(fig)
 
 
-def upload_retrain_tab(metrics):
+def upload_retrain_tab(metrics, health):
     st.subheader("Bulk upload")
     with st.form("upload_form"):
         files = st.file_uploader(
@@ -286,6 +286,13 @@ def upload_retrain_tab(metrics):
     st.write(f"The database holds **{stored['total']}** uploads, "
              f"**{stored['labelled']}** of them labelled "
              f"(at least 5 labelled clips are needed).")
+
+    if not health.get("retraining_enabled", True):
+        st.info("Retraining is disabled on this deployment (RETRAIN_ENABLED=false): "
+                "training runs inside the API process and needs more than the free "
+                "plan's 512 MB, so the instance would be killed mid-job. "
+                "Retrain locally with `docker compose`.")
+        return
 
     with st.form("retrain_form"):
         epochs = st.slider("Fine-tuning epochs", 5, 40, 15)
@@ -361,7 +368,7 @@ def main():
     with tabs[2]:
         predict_tab()
     with tabs[3]:
-        upload_retrain_tab(metrics)
+        upload_retrain_tab(metrics, health)
 
 
 main()

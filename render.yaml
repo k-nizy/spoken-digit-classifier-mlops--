@@ -38,6 +38,13 @@ services:
         value: "1"
       - key: TF_NUM_INTEROP_THREADS
         value: "1"
+      # Training runs inside the API process and needs well over the free plan's
+      # 512 MB. Attempting it here gets the container OOM-killed (the browser sees
+      # a 502 and, with no disk, the uploads are gone after the restart), so the
+      # endpoint answers 503 with that explanation instead. Retrain locally with
+      # docker compose; set this to "true" on a plan with >= 2 GB.
+      - key: RETRAIN_ENABLED
+        value: "false"
 
   - type: web
     name: spoken-digit-ui
