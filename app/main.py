@@ -75,7 +75,6 @@ RETRAIN_ENABLED = os.environ.get("RETRAIN_ENABLED", "true").strip().lower() not 
 # still stops the model forgetting what it already knows.
 RETRAIN_REPLAY_MAX = int(os.environ.get("RETRAIN_REPLAY_MAX", "0"))
 RETRAIN_BATCH_SIZE = int(os.environ.get("RETRAIN_BATCH_SIZE", "32"))
-_model_lock = threading.Lock()
 
 
 def _replay_sample():
@@ -348,12 +347,13 @@ def _run_retrain(job_id, epochs, include_original):
             X_train, y_train = X_new, np.array(y_new)
 
         # accuracy of the model we are about to improve, on the fixed test set.
-        # Reuse the already-loaded serving model: loading a second copy is
-        # memory a 512 MB instance does not have.
+        # Load a private copy: the serving model's predict function cannot be
+        # called from this worker thread.
         X_test, y_test, _ = _test_set_cached()
-        with _model_lock:
-            before_metrics = evaluate_model(get_model(MODEL_PATH), X_test, y_test)
+        previous_model = load_model(MODEL_PATH)
+        before_metrics = evaluate_model(previous_model, X_test, y_test)
         accuracy_before = before_metrics["accuracy"]
+        del previous_model
         gc.collect()
 
         # keep the previous weights so retraining can never destroy them silently
