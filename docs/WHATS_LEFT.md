@@ -112,7 +112,13 @@ run logged `sqlite3.OperationalError: database is locked` and returned five HTTP
 
 The app is Python + TensorFlow + SQLite, so it needs a container host, not a
 static host. Render is the shortest path because it builds the existing
-`Dockerfile` unchanged:
+`Dockerfile` unchanged.
+
+**`render.yaml` in the repo root does steps 2 and 3 for you:** Render -> New ->
+Blueprint -> this repository, and it creates both services (names, plan, region,
+port, health checks and the UI's `API_URL`) from that file, no dashboard fields
+to fill in. The manual route is kept below in case the blueprint is refused or
+you want a different plan.
 
 1. Push the repo to GitHub first (section 2.5).
 2. Render → New → Web Service → your repo → Language: **Docker**.

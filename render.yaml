@@ -1,0 +1,74 @@
+# Render Blueprint - the two services from the one Dockerfile.
+#
+# Instead of clicking through the dashboard: Render -> New -> Blueprint -> pick
+# this repository. Render reads this file, builds ./Dockerfile twice and starts
+# each service with a different command, exactly like docker-compose.yml does
+# locally (minus nginx: Render's router is the front door, so there is one api
+# instance and no load balancer).
+#
+#   api  -> uvicorn on 10000, health check /health
+#   ui   -> Streamlit on 10000, health check /_stcore/health, API_URL = the api's
+#           public address
+#
+# Everything here fits the free plan. What the free plan refuses is listed at
+# the bottom of this file.
+services:
+  - type: web
+    name: spoken-digit-api
+    runtime: docker
+    plan: free
+    region: frankfurt              # closest Render region to Kigali
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    # Overrides the image CMD (uvicorn on 8000). The port is a literal number
+    # because a Docker command is not run through a shell, so "$PORT" would be
+    # passed as text; the PORT variable below pins the other side to 10000 too.
+    dockerCommand: python -m uvicorn app.main:app --host 0.0.0.0 --port 10000
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: "10000"
+      - key: MODEL_PATH
+        value: /app/models/spoken_digit_cnn.keras
+      - key: DATABASE_PATH
+        value: /app/data/db/app.db
+      # TensorFlow opens one thread per core it can see. The free plan has 0.1
+      # CPU and 512 MB, so keep it to one thread of each kind.
+      - key: TF_NUM_INTRAOP_THREADS
+        value: "1"
+      - key: TF_NUM_INTEROP_THREADS
+        value: "1"
+
+  - type: web
+    name: spoken-digit-ui
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    dockerCommand: >-
+      python -m streamlit run app/ui.py --server.address 0.0.0.0
+      --server.port 10000 --server.headless true
+      --browser.gatherUsageStats false
+    healthCheckPath: /_stcore/health
+    envVars:
+      - key: PORT
+        value: "10000"
+      # A free web service cannot receive traffic over Render's private network,
+      # so the UI has to call the API's public URL. That URL is derived from the
+      # api service name above - change this line if you rename it.
+      - key: API_URL
+        value: https://spoken-digit-api.onrender.com
+
+# What the free plan refuses (Render docs, "Deploy for Free"):
+#   - more than 1 instance per service (no scaling; the API cannot be replicated)
+#   - persistent disks, so the SQLite file and uploaded clips are lost on every
+#     deploy, restart and wake-up (DATABASE_PATH works, it just does not persist)
+#   - private-network traffic INTO a free web service, hence the public API_URL
+#   - pre-deploy commands, always-on service, zero-downtime deploys
+#   - 750 instance hours per workspace per month, shared by both services, and a
+#     15-minute idle spin-down (~1 minute to wake)
+#   - 0.1 CPU and 512 MB RAM per service. The api container measured 434-510 MiB
+#     idle on a laptop with two TensorFlow threads, which is right at this
+#     ceiling, so it may be killed for memory. "plan: starter" does NOT help -
+#     it is also 512 MB; the first plan with more RAM is standard (1 CPU / 2 GB).
