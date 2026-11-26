@@ -15,6 +15,7 @@ Start it from the repository root:
     .venv/Scripts/python.exe -m uvicorn app.main:app --reload --port 8000
 """
 
+import gc
 import os
 import shutil
 import tempfile
@@ -68,6 +69,31 @@ _test_set = None       # cached (X, y, names) of data/test for before/after accu
 # set RETRAIN_ENABLED=false and the endpoint answers 503 instead of dying.
 RETRAIN_ENABLED = os.environ.get("RETRAIN_ENABLED", "true").strip().lower() not in {
     "0", "false", "no", "off"}
+
+# How many original data/train clips to replay alongside the uploads (0 = all).
+# A small, class-balanced sample keeps retraining inside a 512 MB instance and
+# still stops the model forgetting what it already knows.
+RETRAIN_REPLAY_MAX = int(os.environ.get("RETRAIN_REPLAY_MAX", "0"))
+RETRAIN_BATCH_SIZE = int(os.environ.get("RETRAIN_BATCH_SIZE", "32"))
+_model_lock = threading.Lock()
+
+
+def _replay_sample():
+    """(X, y) from data/train: everything, or a class-balanced random sample."""
+    if RETRAIN_REPLAY_MAX <= 0:
+        X, y, _ = load_dataset(ORIGINAL_TRAIN_DIR)
+        return X, y
+    rng = np.random.default_rng()
+    per_class = max(1, RETRAIN_REPLAY_MAX // len(CLASS_NAMES))
+    paths, labels = [], []
+    for class_dir in sorted(ORIGINAL_TRAIN_DIR.iterdir()):
+        if not (class_dir.is_dir() and class_dir.name.isdigit()):
+            continue
+        files = sorted(p for p in class_dir.iterdir() if is_supported_audio(p))
+        chosen = rng.choice(len(files), size=min(per_class, len(files)), replace=False)
+        paths += [files[i] for i in chosen]
+        labels += [int(class_dir.name)] * len(chosen)
+    return prepare_batch(paths), np.array(labels)
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
@@ -314,20 +340,21 @@ def _run_retrain(job_id, epochs, include_original):
         y_new = upload_labels[: len(X_new)]
 
         if include_original:
-            X_old, y_old, _ = load_dataset(ORIGINAL_TRAIN_DIR)
+            X_old, y_old = _replay_sample()
             X_train = np.concatenate([X_old, X_new], axis=0)
             y_train = np.concatenate([y_old, np.array(y_new)], axis=0)
+            del X_old, y_old
         else:
-            X_train, y_train = X_new, y_new
+            X_train, y_train = X_new, np.array(y_new)
 
         # accuracy of the model we are about to improve, on the fixed test set.
-        # Load it from disk instead of reusing the cached model: this worker
-        # thread then owns every model object it touches.
+        # Reuse the already-loaded serving model: loading a second copy is
+        # memory a 512 MB instance does not have.
         X_test, y_test, _ = _test_set_cached()
-        previous_model = load_model(MODEL_PATH)
-        before_metrics = evaluate_model(previous_model, X_test, y_test)
+        with _model_lock:
+            before_metrics = evaluate_model(get_model(MODEL_PATH), X_test, y_test)
         accuracy_before = before_metrics["accuracy"]
-        del previous_model
+        gc.collect()
 
         # keep the previous weights so retraining can never destroy them silently
         BACKUP_DIR.mkdir(parents=True, exist_ok=True)
@@ -343,11 +370,14 @@ def _run_retrain(job_id, epochs, include_original):
             learning_rate=3e-4,                 # fine-tuning, not starting from scratch
             model_path=MODEL_PATH,
             initial_model_path=backup_path,     # <-- warm start from our own model
+            batch_size=RETRAIN_BATCH_SIZE,
             verbose=0,
         )
         reset_model_cache()
 
         after = evaluate_model(model, X_test, y_test)
+        del model, X_train
+        gc.collect()
 
         # Never let a retraining run silently make production worse. A drop
         # smaller than TOLERANCE is treated as noise: on 600 test clips, half a

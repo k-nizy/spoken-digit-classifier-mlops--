@@ -295,7 +295,7 @@ def upload_retrain_tab(metrics, health):
         return
 
     with st.form("retrain_form"):
-        epochs = st.slider("Fine-tuning epochs", 5, 40, 15)
+        epochs = st.slider("Fine-tuning epochs", 3, 40, 5)
         include_original = st.checkbox(
             "Also replay data/train (keeps what the model already knows)", value=True)
         started = st.form_submit_button("Start retraining")
@@ -311,12 +311,23 @@ def upload_retrain_tab(metrics, health):
 
         job_id = job["job_id"]
         with st.status(f"Retraining job {job_id} ...", expanded=True) as status:
-            for _ in range(180):                        # up to 6 minutes
+            failures = 0
+            for _ in range(300):                        # up to 10 minutes
                 time.sleep(2)
                 try:
                     job = api_get(f"/retrain/{job_id}")
+                    failures = 0
                 except (RuntimeError, requests.RequestException) as error:
-                    status.write(f"status check failed: {error}")
+                    failures += 1
+                    if failures == 1:
+                        status.write(f"status check failed: {error} - retrying ...")
+                    if failures >= 15:              # ~30 s of errors: the API restarted
+                        job = {"status": "lost"}
+                        status.write(
+                            "The API restarted during training (most likely it ran "
+                            "out of memory), so this job was lost. Try fewer epochs "
+                            "or untick 'Also replay data/train'.")
+                        break
                     continue
                 status.write(f"{job['status']} · {job.get('message') or ''}")
                 if job["status"] != "running":

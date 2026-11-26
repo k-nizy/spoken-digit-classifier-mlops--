@@ -44,7 +44,18 @@ services:
       # endpoint answers 503 with that explanation instead. Retrain locally with
       # docker compose; set this to "true" on a plan with >= 2 GB.
       - key: RETRAIN_ENABLED
-        value: "false"
+        value: "true"
+      # Keep retraining inside 512 MB: replay a 200-clip class-balanced sample
+      # of data/train instead of all 2400, use small batches, and stop glibc
+      # from growing one memory arena per thread.
+      - key: RETRAIN_REPLAY_MAX
+        value: "200"
+      - key: RETRAIN_BATCH_SIZE
+        value: "16"
+      - key: MALLOC_ARENA_MAX
+        value: "2"
+      - key: TF_ENABLE_ONEDNN_OPTS
+        value: "0"
 
   - type: web
     name: spoken-digit-ui
