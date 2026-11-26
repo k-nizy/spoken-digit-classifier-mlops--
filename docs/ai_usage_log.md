@@ -491,3 +491,130 @@ the uploaded clips used for these tests are gone and the demo starts clean.
 TODO: (me) write what you changed after reading this - e.g. a different nginx
 image tag, a higher `client_max_body_size`, or a `--scale` value other than 3.
 
+## Step 8 - Heavier flood test: 40 users, shorter think time
+
+**Date:** 2026-11-26
+**AI tool:** Freebuff coding agent
+
+### Prompt used
+
+> My flood-test table shows 3 containers no better than 2, which will get
+> questioned on camera. Re-run it with more load (about 40 users, shorter think
+> time), keep the old CSVs, and update the README table and interpretation so
+> the scaling story is honest and clear.
+
+### What the AI produced
+
+- `locustfile.py`: think time is now read from `LOCUST_WAIT_MIN` /
+  `LOCUST_WAIT_MAX` (defaults still 1 s and 3 s), so the same file can run a
+  light and a heavy test without editing code.
+- Three new runs at 40 users, spawn rate 10/s, 60 s each, think time 0.5-1.5 s,
+  written to `results/scale1_40u`, `scale2_40u`, `scale3_40u` and
+  `results/scale3b_40u`. The old 20-user CSVs were left untouched.
+- Each replica was warmed up with 30-60 `/predict` calls before the clock
+  started. The first attempt without that produced one 502 in the 2-container
+  run (a just-started replica behind nginx) and a `max` of ~6 s that was a cold
+  TensorFlow session, not a scaling effect.
+- README: new numbers, the warm-up step in the commands, and a written
+  interpretation ("Reading the table").
+
+### Verification run
+
+| Check | Result |
+|---|---|
+| `results/scale1_40u_stats.csv` | 1425 requests, 0 fails, median 460 ms, 95% 1200 ms, 24.4 req/s |
+| `results/scale2_40u_stats.csv` | 1600 requests, 0 fails, median 210 ms, 95% 1200 ms, 27.3 req/s |
+| `results/scale3_40u_stats.csv` | 1428 requests, 0 fails, median 330 ms, 95% 1700 ms, 24.7 req/s |
+| `results/scale3b_40u_stats.csv` (repeat) | 1438 requests, 0 fails, median 340 ms, 95% 1500 ms, 25.0 req/s |
+| 3 replicas, two runs | agree with each other, so the plateau at 3 is reproducible |
+| host core count (`nproc`) | 8 logical CPUs; each container runs TensorFlow with 2 intraop threads |
+| idle `docker stats` after the runs | one api container ~434-510 MiB, so 3 replicas fit in RAM on this laptop |
+
+That first set was the wrong experiment, which the numbers showed: 40 users with
+0.5-1.5 s think time only offer ~25 req/s, so 1, 2 and 3 containers all landed at
+24-27 req/s. CPU never came close to the 8-core ceiling (267 % of 800 %), i.e. the
+load generator was measuring itself. So the test was repeated with 0.1-0.3 s think
+time, where the server is the bottleneck:
+
+| Run | Result |
+|---|---|
+| `scale1_40u_fast_stats.csv` | 1287 requests, 0 fails, median 1700 ms, 95% 2700 ms, 22.8 req/s |
+| `scale2_40u_fast_stats.csv` | 1927 requests, 0 fails, median 780 ms, 95% 2500 ms, 32.4 req/s |
+| `scale2b_40u_fast_stats.csv` | 1384 requests, 0 fails, median 1300 ms, 95% 3200 ms, 23.7 req/s |
+| `scale3_40u_fast_stats.csv` | 1960 requests, 0 fails, median 760 ms, 95% 2700 ms, 32.9 req/s |
+| `scale3b_40u_fast_stats.csv` | 1575 requests, 1 fail, median 920 ms, 95% 3400 ms, 26.9 req/s |
+| `scale3_cpu_40u_fast_stats.csv` | 1341 requests, **5 fails**, median 970 ms, 95% 4100 ms, 22.8 req/s |
+| CPU sampled during the last run (`results/cpu_3_run.txt`) | each api container ~230 %, together ~690 % of the 800 % available |
+| `docker compose logs api` for the 5 failures | `sqlite3.OperationalError: database is locked` -> HTTP 500 on `/predict` |
+| `results/scale2a_40u_fast_*` | excluded: 796 x 502 in a 10 s window, Docker recreated nginx/api mid-run, no api container was actually down |
+
+Conclusion for the report: two replicas are a real win (median 1700 -> 780 ms,
+throughput 22.8 -> 32.4 req/s, repeat run 23.7 as the error bar); a third replica
+is at best a tie and usually worse, because the 8-core host is saturated and the
+shared SQLite file starts returning "database is locked".
+
+### Not verified yet
+
+- Whether a third replica helps on a machine with more cores (or a GPU). Only
+  this 8-core laptop was measured.
+- Whether moving the database to PostgreSQL removes the 500s at 3 replicas - that
+  is a suggestion, not something that was implemented or tested.
+- A distributed Locust run (`--master`/`--worker`), so the load generator is not
+  part of the measurement.
+
+### How I changed it
+
+TODO: (me) reword the "Reading the table" paragraph in your own voice, and say
+whether you would test a 4th container, a GPU host or PostgreSQL next.
+
+## Step 9 - Confirm retraining at one API container, and harden the think-time setting
+
+**Date:** 2026-11-26
+**AI tool:** Freebuff coding agent
+
+### Prompt used
+
+> Scale the stack back to one API container and run a one-epoch retrain to
+> confirm it still works at that size, since that is what I will record. Also
+> give the locustfile think-time change a last look so a bad value fails clearly
+> instead of silently.
+
+### What the AI produced
+
+- `docker compose up -d --scale api=1`, then `POST /retrain?epochs=1`.
+- `locustfile.py`: the two `LOCUST_WAIT_*` values are now read by
+  `think_time_bounds()` when the file is loaded, which stops the run with a clear
+  message for a value that is not a number, a NaN/inf, a negative number, or a
+  maximum below the minimum. Before this, `LOCUST_WAIT_MIN=1o` crashed deep inside
+  Locust, and `LOCUST_WAIT_MIN=5 LOCUST_WAIT_MAX=1` quietly reversed the two.
+
+### Verification run
+
+| Check | Result |
+|---|---|
+| `docker compose up -d --scale api=1` | 3 containers healthy (api, nginx, ui) |
+| `POST /retrain?epochs=1` with 0 uploads | HTTP 400, "need at least 5 labelled uploads" - the guard works |
+| `POST /upload` with 5 labelled clips | 5/5 saved, 5/5 predicted correctly, `labelled: 6` total |
+| `POST /retrain?epochs=1` at 1 container | `finished` in 74 s (10:41:02 -> 10:42:16), 2406 clips (6 uploaded + 2400 original), accuracy 0.9883 -> 0.9883, F1 0.9884, backup `spoken_digit_20261126-104134.keras` |
+| `/uploads` after the retrain | `used_for_training: 6` |
+| `/predict` after the retrain | 7 at 0.99998 confidence, model reloaded |
+| `POST /retrain?epochs=5` at 1 container (the setting in the video script) | `finished` in 67 s (10:44:37 -> 10:45:44), 2406 clips, accuracy 0.9883 -> 0.9867, F1 0.9867, backup written |
+| bad `LOCUST_WAIT_MIN=1o` | exit 1, "is not a number. Give a number of seconds..." |
+| swapped `LOCUST_WAIT_MIN=5 LOCUST_WAIT_MAX=1` | exit 1, "is smaller than ... swap them" |
+| `LOCUST_WAIT_MIN=-1` | exit 1, "is negative; think time cannot be" |
+| `LOCUST_WAIT_MIN=nan`, `LOCUST_WAIT_MAX=inf` | exit 1, "must be a finite number of seconds" |
+| valid `0.5/1.5`, `2/2`, and unset | accepted, bounds 0.5-1.5, 2.0-2.0, 1.0-3.0 |
+| `python -m locust` with a bad value | exit 1 with the same message, before any request is sent |
+
+### Not verified yet
+
+- The full demo path through the Streamlit UI - only the API endpoints were
+  exercised here.
+- The check is indicative only: the six clips uploaded for it came from
+  `data/test`, which is also part of the 600-clip accuracy set. In the real demo
+  the uploads are your own recordings, so the "after" number will differ.
+
+### How I changed it
+
+TODO: (me) note anything you changed in the demo run, e.g. the number of epochs
+you picked so the retrain fits the video.
