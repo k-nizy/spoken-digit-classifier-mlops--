@@ -11,7 +11,7 @@ is turned into a 64 x 63 log-mel spectrogram, so an image CNN can classify it.
 
 ## Demo video
 
-TODO: YouTube link.
+https://youtu.be/Mk6eHAf_oQE
 
 ## Deployed application
 
